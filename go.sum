@@ -1,0 +1,4 @@
+gitee.com/ling-bin/go-utils v1.6.11 h1:vPquFSc4naj1wU60WFWcyyYRPRA/h9hzP1t77cFIPzA=
+gitee.com/ling-bin/go-utils v1.6.11/go.mod h1:cGmM+eXeTqm/D2GIOweLnxfmIm8cdsp06n3oOF5bLwY=
+github.com/gorilla/websocket v1.4.2 h1:+/TMaTYc4QFitKJxsQ7Yye35DkWvkdLcvGKqM+x0Ufc=
+github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
