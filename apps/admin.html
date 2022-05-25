@@ -20,7 +20,7 @@
                     return false;
                 }
                 // ws = new WebSocket("{{.}}");
-                ws = new WebSocket("ws://127.0.0.1:8001/chat?uid=1&partner_id=2&company_id=2&name=李四&follow=1,2");
+                ws = new WebSocket("ws://127.0.0.1:2022/");
                 ws.onopen = function(evt) {
                     print("RESPONSE: " + evt);
                 }

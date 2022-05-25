@@ -22,7 +22,7 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	port := []string{"8001"} // 监听端口
+	port := []string{"2022"} // 监听端口
 	addrAry := make([]string, 0, 5)
 	for _, address := range addrs {
 		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
@@ -72,7 +72,7 @@ func main() {
 		//
 		//
 		// fmt.Println("======")
-		fmt.Println(connId)
+		fmt.Println(connId, "Service.go line:75")
 		// fmt.Println("[", connection.GetRemoteAddr().String(), " ", connection.GetLocalAddr().String(), "][", connId, "]客户端路径[", connection.GetRequest().URL, "]连接上传新数据：", len(data), "---", string(data))
 		// //回复
 		by := bytes.Buffer{}
@@ -122,7 +122,7 @@ func main() {
 				" 剩余数:", rqueueCount,
 				" 处理超时数:", rtimeCount,
 				" 协程数：", runtime.NumGoroutine())
-			time.Sleep(time.Second * 1)
+			time.Sleep(time.Second * 10)
 		}
 	}()
 	select {}
