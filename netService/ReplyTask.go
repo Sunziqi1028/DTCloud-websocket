@@ -69,3 +69,34 @@ func (r *replyTask) CallError(taskCode int) {
 		}
 	}
 }
+
+func ReplyForUid(c *Connection, msgType int, data []byte, cmdCode string, param interface{}, callFunc func(netInterface.IConnection, int, []byte, bool, string, interface{}, error)) error {
+	reply := newReplyTask()
+	reply.ConnId = c.connId
+	reply.Data = data
+	reply.MsgType = msgType
+	reply.CallFunc = callFunc
+	reply.CmdCode = cmdCode
+	reply.Param = param
+	reply.RunReplyTask = c.runReplyTask
+	reply.RunError = c.runReplyOutTime
+
+	if c.server.config.IsOutTime {
+		reply.Duration = c.server.config.ReplyOutTime
+	} else {
+		reply.Duration = 0
+
+	}
+	var err error
+	if !c.server.config.OverflowDiscard {
+		c.server.replyHandle.SendToTaskQueueWait(reply)
+		// c.server.replyHandle.SendToTaskQueueWait(reply1)
+	} else {
+		err = c.server.replyHandle.SendToTaskQueue(reply)
+		if err != nil {
+			c.server.CallLogHandle(netInterface.Warn, "发送队列已满", err)
+		}
+	}
+	return err
+
+}

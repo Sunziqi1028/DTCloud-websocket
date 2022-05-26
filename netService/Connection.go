@@ -2,6 +2,7 @@ package netService
 
 import (
 	"errors"
+	"gitee.com/ling-bin/netwebSocket/global"
 	"net"
 	"net/http"
 	"sync"
@@ -32,6 +33,9 @@ type Connection struct {
 	heartTime        time.Time              // 心跳时间(每包更新)
 }
 
+// 定义全局客户端
+var GlobalClient = make(map[uint64]*Connection)
+
 // NewConnection 初始化连接方法
 func NewConnection(server *Service, conn *websocket.Conn, connId uint64, request *http.Request) *Connection {
 	c := &Connection{
@@ -45,6 +49,7 @@ func NewConnection(server *Service, conn *websocket.Conn, connId uint64, request
 	}
 	// 将当前连接放入ConnMgr
 	c.server.GetConnMgr().Add(c)
+	GlobalClient[c.connId] = c
 	return c
 }
 
@@ -143,11 +148,42 @@ func (c *Connection) SendDataCall(msgType int, data []byte, cmdCode string, para
 		return errors.New("连接关闭，不能发送消息")
 	}
 
-	// 对象池获取
+	// 对象池获取用户信息
+	userInfo := global.GlobalUsers[c.connId]
+	var err error
+	switch userInfo.Type {
+	case global.ORIENT:
+		for _, v := range userInfo.Follow {
+			if _, ok := global.GlobalUsers[v]; ok {
+				toClient := GlobalClient[v]
+				//toConn := toClient.GetNetConn().(*Connection)
+				err = ReplyForUid(toClient, msgType, data, cmdCode, param, callFunc)
+			}
+		}
 
-	var uid uint64 = 2
+	case global.RADIO:
+		for _, v := range global.GlobalUsers {
+			//toClient, _ := c.server.ConnMgr.Get(v.UID)
+			//toConn := toClient.GetNetConn().(*Connection)
+			toClient := GlobalClient[v.UID]
+			if !toClient.isClosed {
+				err = ReplyForUid(toClient, msgType, data, cmdCode, param, callFunc)
+			}
+		}
+
+	case global.CHATROOM:
+		for _, v := range global.GlobalUsers {
+			if userInfo.CompanyID == v.CompanyID {
+				toClient, _ := GlobalClient[v.UID]
+				//toConn := toClient.GetNetConn().(*Connection)
+				if !toClient.isClosed {
+					err = ReplyForUid(toClient, msgType, data, cmdCode, param, callFunc)
+				}
+			}
+		}
+	}
+	//var uid uint64 = 2
 	funs := c.server.GetConnMgr()
-
 	// Service, _ = s.GetConnMgr().Get(uid)
 
 	// c.server.config
@@ -160,49 +196,49 @@ func (c *Connection) SendDataCall(msgType int, data []byte, cmdCode string, para
 	// 	return true
 	// })
 
-	println(funs)
+	println(funs, "Connection.go line 162")
 
-	if uid == 1 {
-		uid = 2
-	}
+	//if uid == 1 {
+	//	uid = 2
+	//}
 
-	reply := newReplyTask()
-	reply.ConnId = c.connId
-	reply.Data = data
-	reply.MsgType = msgType
-	reply.CallFunc = callFunc
-	reply.CmdCode = cmdCode
-	reply.Param = param
-	reply.RunReplyTask = c.runReplyTask
-	reply.RunError = c.runReplyOutTime
-
-	reply1 := newReplyTask()
-	reply1.ConnId = 2
-	reply1.Data = data
-	reply1.MsgType = msgType
-	reply1.CallFunc = callFunc
-	reply1.CmdCode = cmdCode
-	reply1.Param = param
-	reply1.RunReplyTask = c.runReplyTask
-	reply1.RunError = c.runReplyOutTime
-
-	var err error
-	if c.server.config.IsOutTime {
-		reply1.Duration = c.server.config.ReplyOutTime
-	} else {
-		reply.Duration = 0
-		reply1.Duration = 0
-	}
-
-	if !c.server.config.OverflowDiscard {
-		c.server.replyHandle.SendToTaskQueueWait(reply)
-		// c.server.replyHandle.SendToTaskQueueWait(reply1)
-	} else {
-		err = c.server.replyHandle.SendToTaskQueue(reply)
-		if err != nil {
-			c.server.CallLogHandle(netInterface.Warn, "发送队列已满", err)
-		}
-	}
+	//reply := newReplyTask()
+	//reply.ConnId = c.connId
+	//reply.Data = data
+	//reply.MsgType = msgType
+	//reply.CallFunc = callFunc
+	//reply.CmdCode = cmdCode
+	//reply.Param = param
+	//reply.RunReplyTask = c.runReplyTask
+	//reply.RunError = c.runReplyOutTime
+	//
+	//reply1 := newReplyTask()
+	//reply1.ConnId = 2
+	//reply1.Data = data
+	//reply1.MsgType = msgType
+	//reply1.CallFunc = callFunc
+	//reply1.CmdCode = cmdCode
+	//reply1.Param = param
+	//reply1.RunReplyTask = c.runReplyTask
+	//reply1.RunError = c.runReplyOutTime
+	//
+	//var err error
+	//if c.server.config.IsOutTime {
+	//	reply1.Duration = c.server.config.ReplyOutTime
+	//} else {
+	//	reply.Duration = 0
+	//	reply1.Duration = 0
+	//}
+	//
+	//if !c.server.config.OverflowDiscard {
+	//	c.server.replyHandle.SendToTaskQueueWait(reply)
+	//	// c.server.replyHandle.SendToTaskQueueWait(reply1)
+	//} else {
+	//	err = c.server.replyHandle.SendToTaskQueue(reply)
+	//	if err != nil {
+	//		c.server.CallLogHandle(netInterface.Warn, "发送队列已满", err)
+	//	}
+	//}
 	return err
 }
 

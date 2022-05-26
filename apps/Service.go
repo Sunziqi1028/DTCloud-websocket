@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"gitee.com/ling-bin/netwebSocket/server"
 	"log"
 	"net"
 	"net/http"
@@ -106,6 +107,8 @@ func main() {
 		}
 	})
 	service.Start()
+	server.HttpStart() // 启动http服务
+
 	go func() {
 		for {
 			receiveWorkerPool := service.GetReceiveWorkerPool()

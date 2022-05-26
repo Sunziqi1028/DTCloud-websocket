@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"IM/global"
 	"fmt"
+	"gitee.com/ling-bin/netwebSocket/global"
 	"strings"
 
 	"strconv"
@@ -10,16 +10,16 @@ import (
 
 func CheckUidUnique(uid uint64) bool {
 	if _, ok := global.GlobalUsers[uid]; ok {
-		return true
+		return false
 	}
-	return false
+	return true
 }
 
 func CheckPartnerIDUnique(partner_id uint64) bool {
 	if _, ok := global.PartnerMap[partner_id]; ok {
-		return true
+		return false
 	}
-	return false
+	return true
 }
 
 func ConvertString2IntSlice(s string) ([]uint64, error) {

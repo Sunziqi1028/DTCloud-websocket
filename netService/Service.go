@@ -2,12 +2,13 @@ package netService
 
 import (
 	"fmt"
+	"gitee.com/ling-bin/netwebSocket/global"
+	"gitee.com/ling-bin/netwebSocket/utils"
 	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"gitee.com/ling-bin/go-utils/pools"
@@ -86,21 +87,49 @@ func (s *Service) wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 如果用户传入自己的uid 就使用uid 同时传入一个公司company_id,partner_id
-	var uid uint64 = atomic.AddUint64(&s.connId, 1) // 用户ID
-	var partner_id uint64 = 0                       // 用户Partner_ID
-	var company_id uint64 = 0                       // 用户组织ID
-	var partner_name string = ""                    // 用户名称
-	var follow string = ""                          // 关注者
+	//var uid uint64 = atomic.AddUint64(&s.connId, 1) // 用户ID
+	var uid uint64               // 用户ID
+	var partner_id uint64 = 0    // 用户Partner_ID
+	var company_id uint64 = 0    // 用户组织ID
+	var partner_name string = "" // 用户名称
+	var follow []uint64          // 关注者
+	var messageType = ""         //  消息类型 room ：聊天室 | radio：广播  | orient：定向
 	if r.URL.RawQuery != "" {
 		values, _ := url.ParseQuery(r.URL.RawQuery)
 		intUid, _ := strconv.Atoi(values["uid"][0])
 		uid = uint64(intUid)
+		ok := utils.CheckUidUnique(uid) // 校验UID 是否唯一
+		if !ok {
+			log.Println("该用户UID已经存在:", r)
+			conn.Close()
+			s.ConnMgr.RemoveById(uid)
+		}
 		intPartnerId, _ := strconv.Atoi(values["partner_id"][0])
 		partner_id = uint64(intPartnerId)
+		ok = utils.CheckPartnerIDUnique(partner_id) // 校验partner_id 是否唯一
+		if !ok {
+			log.Println("该伙伴ID已经存在:", r)
+			conn.Close()
+			s.ConnMgr.RemoveById(uid)
+		}
+		global.PartnerMap[uid] = partner_id
+		fmt.Println("uid:", uid, "partner_id:", partner_id, "service.go line:116")
 		intCompanyId, _ := strconv.Atoi(values["company_id"][0])
 		company_id = uint64(intCompanyId)
 		partner_name = values["name"][0]
-		follow = values["follow"][0]
+		//followTmp = values["follow"][0]
+		follow, _ = utils.ConvertString2IntSlice(values["follow"][0])
+		messageType = values["type"][0]
+		var UserInfo = global.User{
+			UID:       uid,
+			PartnerID: partner_id,
+			CompanyID: company_id,
+			Name:      partner_name,
+			Type:      messageType,
+			Follow:    follow,
+		}
+		fmt.Println(UserInfo, "Service.go ---line:130")
+		global.GlobalUsers[uid] = &UserInfo // 存储全部的用户信息
 	}
 
 	acceptTask := newAcceptTask()
@@ -178,13 +207,16 @@ func (s *Service) Start() {
 		s.CallLogHandle(netInterface.Error, fmt.Sprint("连接接入工作池：", errString))
 	})
 
+	wsMux := http.NewServeMux() // 添加websocket 路由多路复用
 	if len(s.config.PathAry) == 0 {
 		// 默认监听
-		http.HandleFunc("/", s.wsHandler)
+		wsMux.HandleFunc("/", s.wsHandler)
+		//http.HandleFunc("/", s.wsHandler)
 	} else {
 		// 监听地址
 		for _, val := range s.config.PathAry {
-			http.HandleFunc(fmt.Sprint("/", val), s.wsHandler)
+			wsMux.HandleFunc(fmt.Sprint("/", val), s.wsHandler)
+			//http.HandleFunc(fmt.Sprint("/", val), s.wsHandler)
 		}
 	}
 	s.startTime = time.Now()
@@ -198,9 +230,21 @@ func (s *Service) Start() {
 			time.AfterFunc(time.Second*2, wg.Done)
 			s.CallLogHandle(netInterface.Info, "[开启] 服务监听 [", s.config.Scheme, "]地址[", addr, "]")
 			if s.config.Scheme == "wss" { // 安全连接
-				err = http.ListenAndServeTLS(addr, s.config.CertFile, s.config.KeyFile, nil)
+				server := &http.Server{
+					Addr: addr,
+					//cers.config.CertFile,
+					//s.config.KeyFile,
+					Handler: wsMux,
+				}
+				err = server.ListenAndServeTLS(s.config.CertFile, s.config.KeyFile)
+				//err = http.ListenAndServeTLS(addr, s.config.CertFile, s.config.KeyFile, nil)
 			} else {
-				err = http.ListenAndServe(addr, nil)
+				server := http.Server{
+					Addr:    addr,
+					Handler: wsMux,
+				}
+				err = server.ListenAndServe()
+				//err = http.ListenAndServe(addr, nil)
 			}
 			if err != nil {
 				s.CallLogHandle(netInterface.Error, "[webSocket]server start listen error::", err)

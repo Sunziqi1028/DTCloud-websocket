@@ -22,7 +22,7 @@ type acceptTask struct {
 	CompanyId uint64                                                                                          // 公司ID
 	PartnerId uint64                                                                                          // 伙伴ID
 	Name      string                                                                                          // 用户名称
-	Follow    string                                                                                          // 向关注者发送数据
+	Follow    []uint64                                                                                        // 向关注者发送数据
 	Response  http.ResponseWriter                                                                             // 响应
 	Request   *http.Request                                                                                   // 请求
 	Duration  time.Duration                                                                                   // 超时时间
