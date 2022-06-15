@@ -1,0 +1,12 @@
+PostgreSql:
+Host: "122.51.164.176"
+Port: 5432
+Prefix: "tb_"
+User: "dtcloud"
+Pass: "123456"
+DataBase: "DT123"
+SetMaxIdleConns: 10
+SetMaxOpenConns: 128
+SetConnMaxLifetime: 60
+
+Log_speed: 10

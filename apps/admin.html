@@ -20,7 +20,7 @@
                     return false;
                 }
                 // ws = new WebSocket("{{.}}");
-                ws = new WebSocket("ws://127.0.0.1:2022/");
+                ws = new WebSocket("ws://127.0.0.1:32771/chat?uid=1&uuid=123&partner_id=3&company_id=1&name=Administrator&database_secret=9b76b424-87c4-4b0a-afd3-632a9198052d&follow=1,2,3&type=orient&fun=main'");
                 ws.onopen = function(evt) {
                     print("RESPONSE: " + evt);
                 }

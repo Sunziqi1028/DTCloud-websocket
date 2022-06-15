@@ -1,6 +1,7 @@
 package netService
 
 import (
+	"gitee.com/ling-bin/netwebSocket/global"
 	"sync"
 
 	"gitee.com/ling-bin/netwebSocket/netInterface"
@@ -19,7 +20,8 @@ func NewConnManager() netInterface.IConnManager {
 // Add 添加链接[新连接处理]
 func (c *ConnManager) Add(conn netInterface.IConnection) {
 	connId := conn.GetConnId()
-	c.connections.Store(connId, conn)
+	userInfo := global.GlobalUsers[connId]
+	c.connections.Store(userInfo.UUID, conn)
 }
 
 // Remove 删除连接

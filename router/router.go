@@ -9,6 +9,7 @@ func NewRouter() *gin.Engine {
 	router := gin.Default()
 
 	router.POST("/data_iot", v1.PostDataOfIot)
+	router.POST("/data_handle", v1.HandleData)
 
 	return router
 }

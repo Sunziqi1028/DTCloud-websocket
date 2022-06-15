@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gitee.com/ling-bin/netwebSocket/global"
 	"github.com/gin-gonic/gin"
+	"io/ioutil"
 )
 
 var BroadcastChan chan []byte
@@ -15,7 +16,7 @@ func PostDataOfIot(c *gin.Context) {
 
 	c.ShouldBind(&userData)
 
-	fmt.Println("data_controller.go line:22", userData)
+	fmt.Println("data_controller.go line:19", userData)
 
 	data, _ := json.Marshal(userData)
 
@@ -29,4 +30,27 @@ func PostDataOfIot(c *gin.Context) {
 	}
 	c.JSON(200, "send data successful~")
 	return
+}
+
+func HandleData(c *gin.Context) {
+	data, _ := ioutil.ReadAll(c.Request.Body)
+
+	fmt.Println(string(data), "data_controller.go line:38")
+
+	params := CheckDataIsParams(data)
+	if params != nil {
+		bytes, err := HandlerParams(params)
+		if err != nil {
+			c.JSON(500, gin.H{"data": err})
+			return
+		}
+		c.JSON(200, gin.H{
+			"data": bytes,
+		})
+		return
+	}
+
+	c.JSON(200, "")
+	return
+
 }

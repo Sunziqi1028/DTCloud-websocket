@@ -88,58 +88,59 @@ func (s *Service) wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 如果用户传入自己的uid 就使用uid 同时传入一个公司company_id,partner_id
 	//var uid uint64 = atomic.AddUint64(&s.connId, 1) // 用户ID
-	var uid uint64               // 用户ID
-	var partner_id uint64 = 0    // 用户Partner_ID
-	var company_id uint64 = 0    // 用户组织ID
+	//ws = new WebSocket('ws://192.168.32.116:32771/chat?uid=2&partner_id=3&company_id=1&
+	//name=Administrator&database_secret=9b76b424-87c4-4b0a-afd3-632a9198052d&follow=2,7&type=orient&fun=main')
+	var uid uint64            // 用户ID
+	var partner_id uint64 = 0 // 用户Partner_ID
+	var company_id uint64 = 0 // 用户组织ID
+	var databaseSecret = ""
 	var partner_name string = "" // 用户名称
 	var follow []uint64          // 关注者
 	var messageType = ""         //  消息类型 room ：聊天室 | radio：广播  | orient：定向
+	var fun = ""
+	var uuid uint64
 	if r.URL.RawQuery != "" {
 		values, _ := url.ParseQuery(r.URL.RawQuery)
 		intUid, _ := strconv.Atoi(values["uid"][0])
 		uid = uint64(intUid)
-		ok := utils.CheckUidUnique(uid) // 校验UID 是否唯一
-		if !ok {
-			log.Println("该用户UID已经存在:", r)
-			conn.Close()
-			s.ConnMgr.RemoveById(uid)
-		}
 		intPartnerId, _ := strconv.Atoi(values["partner_id"][0])
 		partner_id = uint64(intPartnerId)
-		ok = utils.CheckPartnerIDUnique(partner_id) // 校验partner_id 是否唯一
-		if !ok {
-			log.Println("该伙伴ID已经存在:", r)
-			conn.Close()
-			s.ConnMgr.RemoveById(uid)
-		}
 		global.PartnerMap[uid] = partner_id
-		fmt.Println("uid:", uid, "partner_id:", partner_id, "service.go line:116")
 		intCompanyId, _ := strconv.Atoi(values["company_id"][0])
 		company_id = uint64(intCompanyId)
 		partner_name = values["name"][0]
-		//followTmp = values["follow"][0]
+		databaseSecret = values["database_secret"][0]
+		uuidTmp := values["uuid"][0]
+		intUuid, _ := strconv.Atoi(uuidTmp)
+		uuid = uint64(intUuid)
+		fmt.Println("uid:", uid, "uuid:", uuid, "service.go line:116")
 		follow, _ = utils.ConvertString2IntSlice(values["follow"][0])
 		messageType = values["type"][0]
 		var UserInfo = global.User{
-			UID:       uid,
-			PartnerID: partner_id,
-			CompanyID: company_id,
-			Name:      partner_name,
-			Type:      messageType,
-			Follow:    follow,
+			UID:            uid,
+			PartnerID:      partner_id,
+			CompanyID:      company_id,
+			Name:           partner_name,
+			Type:           messageType,
+			Follows:        follow,
+			Fun:            fun,
+			DatabaseSecret: databaseSecret,
+			UUID:           uuid,
 		}
-		fmt.Println(UserInfo, "Service.go ---line:130")
-		global.GlobalUsers[uid] = &UserInfo // 存储全部的用户信息
+		utils.StoreDBMap(databaseSecret, uid)    // 存储该DB对应所有的UID
+		utils.StoreCompanyIDMap(company_id, uid) // 存储一个company_id 对应的所有UID
+		utils.StoreUuidOfUid(uid, uuid)
+		fun = values["fun"][0]
+		global.GlobalUsers[uuid] = &UserInfo // 存储全部的用户信息
 	}
 
 	acceptTask := newAcceptTask()
 	acceptTask.Conn = conn
-	acceptTask.ConnId = uid // 创建用户ID
+	acceptTask.ConnId = uuid // 创建用户ID
 	acceptTask.PartnerId = partner_id
 	acceptTask.CompanyId = company_id
 	acceptTask.Name = partner_name
 	acceptTask.Follow = follow
-	// acceptTask.ConnId = atomic.AddUint64(&s.connId, 2) //创建用户ID
 	acceptTask.Request = r
 	acceptTask.Response = w
 	acceptTask.OnAccept = s.runAcceptTask
@@ -167,6 +168,7 @@ func (s *Service) runAcceptTask(accept *acceptTask) {
 			s.CallLogHandle(netInterface.Error, "[websocket]连接接入处理异常:", r)
 		}
 	}()
+
 	dealConn := NewConnection(s, accept.Conn, accept.ConnId, accept.Request)
 	dealConn.Start()
 	if s.OnConnAuth != nil && !s.OnConnAuth(dealConn, accept.Response, accept.Request) {
@@ -210,12 +212,12 @@ func (s *Service) Start() {
 	wsMux := http.NewServeMux() // 添加websocket 路由多路复用
 	if len(s.config.PathAry) == 0 {
 		// 默认监听
-		wsMux.HandleFunc("/", s.wsHandler)
+		wsMux.HandleFunc("/chat", s.wsHandler)
 		//http.HandleFunc("/", s.wsHandler)
 	} else {
 		// 监听地址
 		for _, val := range s.config.PathAry {
-			wsMux.HandleFunc(fmt.Sprint("/", val), s.wsHandler)
+			wsMux.HandleFunc(fmt.Sprint("/chat", val), s.wsHandler)
 			//http.HandleFunc(fmt.Sprint("/", val), s.wsHandler)
 		}
 	}

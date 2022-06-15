@@ -2,7 +2,9 @@ package netService
 
 import (
 	"errors"
+	"fmt"
 	"gitee.com/ling-bin/netwebSocket/global"
+	"gitee.com/ling-bin/netwebSocket/utils"
 	"net"
 	"net/http"
 	"sync"
@@ -49,7 +51,8 @@ func NewConnection(server *Service, conn *websocket.Conn, connId uint64, request
 	}
 	// 将当前连接放入ConnMgr
 	c.server.GetConnMgr().Add(c)
-	GlobalClient[c.connId] = c
+	userInfo := global.GlobalUsers[c.connId]
+	GlobalClient[userInfo.UUID] = c
 	return c
 }
 
@@ -131,6 +134,14 @@ func (c *Connection) Stop() {
 			c.server.CallOnConnStop(c)
 			// 关闭连接
 			c.conn.Close()
+			// 删除company_id中的当前UID
+			utils.DelUidOfCompanyID(c.connId)
+			// 删除DBMap中的当前UID
+			utils.DelUidOfDBMap(c.connId)
+			// 删除当前用户的UUID
+			utils.DelUuidOfUid(c.connId)
+			// 删除当前用户的所有信息
+			utils.DelGlobalUser(c.connId)
 			// 将conn在ConnMgr中删除
 			c.server.GetConnMgr().Remove(c)
 		}
@@ -149,40 +160,58 @@ func (c *Connection) SendDataCall(msgType int, data []byte, cmdCode string, para
 	}
 
 	// 对象池获取用户信息
-	userInfo := global.GlobalUsers[c.connId]
+	userInfo := global.GlobalUsers[c.connId]             // c.connId == uuid， 通过UUID 拿到当前UUID绑定的用户信息
+	dbUids := global.OneDB2Uids[userInfo.DatabaseSecret] // 当前数据库下所有的UID
 	var err error
 	switch userInfo.Type {
 	case global.ORIENT:
-		for _, v := range userInfo.Follow {
-			if _, ok := global.GlobalUsers[v]; ok {
-				toClient := GlobalClient[v]
-				//toConn := toClient.GetNetConn().(*Connection)
-				err = ReplyForUid(toClient, msgType, data, cmdCode, param, callFunc)
+		for _, uid := range dbUids { // 遍历当前数据库下所有UID
+			fmt.Println("Connect.go line:169, uid:", uid)
+			for _, follow := range userInfo.Follows { // 遍历该用户的接收者
+				fmt.Println("Connect.go line:171, follow:", follow) // 定向发送消息对象
+				if uid == follow {                                  // 只有当前数据库下的用户，才可以接收信息
+					uuids := global.OneUId2Uuids[follow] // 拿到当前接收者下所有的窗口
+					fmt.Println("line:174, uuids", uuids)
+					for _, uuid := range uuids {
+						fmt.Println("当前窗口的uuid:", uuid)
+						toClient := GlobalClient[uuid]
+						err = ReplyForUid(toClient, msgType, data, cmdCode, param, callFunc)
+						if err != nil {
+							return errors.New(fmt.Sprintf("定向消息发送失败：%v", err))
+						}
+					}
+				}
 			}
 		}
-
 	case global.RADIO:
-		for _, v := range global.GlobalUsers {
-			//toClient, _ := c.server.ConnMgr.Get(v.UID)
-			//toConn := toClient.GetNetConn().(*Connection)
-			toClient := GlobalClient[v.UID]
-			if !toClient.isClosed {
-				err = ReplyForUid(toClient, msgType, data, cmdCode, param, callFunc)
+		for _, uid := range dbUids {
+			uuids := global.OneUId2Uuids[uid]
+			for _, uuid := range uuids {
+				toClient := GlobalClient[uuid]
+				if !toClient.isClosed {
+					err = ReplyForUid(toClient, msgType, data, cmdCode, param, callFunc)
+					return errors.New(fmt.Sprintf("广播消息发送失败：%v", err))
+				}
 			}
 		}
 
 	case global.CHATROOM:
-		for _, v := range global.GlobalUsers {
-			if userInfo.CompanyID == v.CompanyID {
-				toClient, _ := GlobalClient[v.UID]
-				//toConn := toClient.GetNetConn().(*Connection)
-				if !toClient.isClosed {
-					err = ReplyForUid(toClient, msgType, data, cmdCode, param, callFunc)
+		uids := global.OneCompanyId2Uids[userInfo.CompanyID]
+		for _, dbuid := range dbUids {
+			for _, uid := range uids {
+				if dbuid == uid {
+					uuids := global.OneUId2Uuids[uid]
+					for _, uuid := range uuids {
+						toClient, _ := GlobalClient[uuid]
+						if !toClient.isClosed {
+							err = ReplyForUid(toClient, msgType, data, cmdCode, param, callFunc)
+							return errors.New(fmt.Sprintf("聊天室消息发送失败：%v", err))
+						}
+					}
 				}
 			}
 		}
 	}
-	//var uid uint64 = 2
 	funs := c.server.GetConnMgr()
 	// Service, _ = s.GetConnMgr().Get(uid)
 
